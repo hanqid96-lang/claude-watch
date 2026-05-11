@@ -1,0 +1,47 @@
+name: Build ClaudeWatch IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        working-directory: ios/ClaudeWatch
+        run: xcodegen generate
+
+      - name: Build (unsigned)
+        working-directory: ios/ClaudeWatch
+        run: |
+          xcodebuild \
+            -project ClaudeWatch.xcodeproj \
+            -scheme ClaudeWatch \
+            -configuration Release \
+            -destination generic/platform=iOS \
+            -archivePath $RUNNER_TEMP/ClaudeWatch.xcarchive \
+            archive \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Package IPA
+        run: |
+          mkdir -p /tmp/Payload
+          cp -r $RUNNER_TEMP/ClaudeWatch.xcarchive/Products/Applications/Agent\ Watch.app /tmp/Payload/
+          cd /tmp && zip -r ClaudeWatch.ipa Payload
+          echo "IPA created at /tmp/ClaudeWatch.ipa"
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: ClaudeWatch-ipa
+          path: /tmp/ClaudeWatch.ipa
+          retention-days: 7
